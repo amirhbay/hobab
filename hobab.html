@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="fa">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ماشین حساب هوشمند طلا - تومان (با Cache)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* استایل‌ها برای spinner, status-box, input-autofilled مانند قبل */
+        .status-box {
+            min-height: 60px; line-height: 1.5; background-color: #f9fafb;
+            border: 1px solid #e5e7eb; border-radius: 0.375rem; padding: 0.5rem;
+            overflow-y: auto; max-height: 150px;
+        }
+        .status-box p { margin-bottom: 0.25rem; font-size: 0.75rem; }
+        .status-box p:last-child { margin-bottom: 0; }
+        .input-autofilled {
+            background-color: #f0fff4; transition: background-color 0.3s ease;
+        }
+        .spinner {
+            border: 2px solid rgba(255, 255, 255, 0.3); border-radius: 50%;
+            border-top-color: #ffffff; width: 1rem; height: 1rem;
+            animation: spin 1s linear infinite; display: inline-block;
+            vertical-align: middle; margin-left: 0.5rem;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .hidden { display: none; }
+        /* انیمیشن محو شدن برای نتایج */
+        #results.fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-4">
+    <div class="max-w-2xl mx-auto">
+        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4">
+            <strong>توجه:</strong>
+            <p class="mb-0">این ابزار فقط در جهت روشنگری است و جنبه‌ی آموزشی دارد و اصلا پیشنهاد خرید یا نگهداری نیست. فقط وسیله ‌ایست  تا با در نظر گرفتن اخبار دلار و طلا و ... تصمیم بهتری بگیرید.</p>
+        </div>
+
+        <div class="bg-white p-4 rounded-lg shadow-md mb-4">
+            <div class="grid grid-cols-1 gap-4 mb-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">قیمت انس جهانی طلا (دلار)</label>
+                    <div class="flex gap-2 items-start">
+                        <div class="flex-1">
+                            <input type="number" id="ouncePrice" oninput="handleManualInput(this); saveInputs();" class="block w-full rounded-md border-gray-300 shadow-sm" placeholder="مثال: 2350.50">
+                            <div id="goldStatus" class="mt-1 status-box"></div>
+                        </div>
+                        <button id="fetchGoldButton" onclick="fetchData('gold', 'ouncePrice', 'goldStatus')" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg h-fit whitespace-nowrap flex items-center justify-center min-w-[120px]">
+                            <span class="button-text">دریافت خودکار</span><span class="spinner hidden"></span>
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">قیمت دلار به **تومان** (بازار آزاد)</label>
+                    <div class="flex gap-2 items-start">
+                        <div class="flex-1">
+                            <input type="number" id="dollarPrice" oninput="handleManualInput(this); saveInputs();" class="block w-full rounded-md border-gray-300 shadow-sm" placeholder="مثال: 58500">
+                            <div id="dollarStatus" class="mt-1 status-box"></div>
+                        </div>
+                        <button id="fetchDollarButton" onclick="fetchData('dollar', 'dollarPrice', 'dollarStatus')" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg h-fit whitespace-nowrap flex items-center justify-center min-w-[120px]">
+                            <span class="button-text">دریافت خودکار</span><span class="spinner hidden"></span>
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">قیمت هر گرم طلای 18 عیار ایران (**تومان**)</label>
+                    <div class="flex gap-2 items-start">
+                        <div class="flex-1">
+                            <input type="number" id="iranGold" oninput="handleManualInput(this); saveInputs();" class="block w-full rounded-md border-gray-300 shadow-sm" placeholder="مثال: 3450000">
+                            <div id="iranGoldStatus" class="mt-1 status-box"></div>
+                        </div>
+                        <button id="fetchIranGoldButton" onclick="fetchData('iranGold', 'iranGold', 'iranGoldStatus')" class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg h-fit whitespace-nowrap flex items-center justify-center min-w-[120px]">
+                            <span class="button-text">دریافت خودکار</span><span class="spinner hidden"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <div class="grid grid-cols-2 gap-4 mb-4">
+            <button onclick="calculate()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg">محاسبه و تحلیل</button>
+            <button onclick="resetAll()" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg">بازنشانی فرم</button>
+        </div>
+        <div id="results" class="space-y-4"></div>
+      
+    </div>
+
+    <script>
+        // --- تنظیمات ---
+        const CORS_PROXIES = [
+            'https://api.allorigins.win/get?url=', 'https://corsproxy.io/?', 'https://cors.bridged.cc/',
+            'https://thingproxy.freeboard.io/fetch/', 'https://api.codetabs.com/v1/proxy?quest=',
+            'https://cors-bypass.amano.workers.dev/?url='
+        ];
+        let currentProxyIndex = 0;
+        const SOURCES = {
+            'gold': [
+                { name: 'TGJU.org (Ounce)', url: 'https://www.tgju.org/profile/ons', selector: 'span[data-col="info.last_trade.PDrCotVal"]', parser: (text) => parseFloat(text.replace(/[^0-9.]/g, '')) },
+                { name: 'Mesghal.com (Ounce)', url: 'https://www.mesghal.com/', selector: '#ons_val', parser: (text) => parseFloat(text.replace(/[^0-9.]/g, '')) },
+                { name: 'GoldPrice.org', url: 'https://www.goldprice.org/', selector: '.gpoticker-price', parser: (text) => parseFloat(text.replace(/[^0-9.]/g, '')) },
+                { name: 'APMEX Spot Price', url: 'https://www.apmex.com/spot-prices/gold-prices', selector: 'div.spot-price-blocks a[href="/spot-prices/gold-prices"] .price', parser: (text) => parseFloat(text.replace(/[^0-9.]/g, '')) },
+                { name: 'Kitco - Ask Price', url: 'https://www.kitco.com/', selector: '#sp-ask-usd', parser: (text) => parseFloat(text.replace(/[^0-9.]/g, '')) }
+            ],
+            'dollar': [
+                { name: 'TGJU.org (Dollar)', url: 'https://www.tgju.org/profile/price_dollar_rl', selector: 'span[data-col="info.last_trade.PDrCotVal"]', parser: (text) => parseInt(text.replace(/,/g, ''), 10) },
+                { name: 'Bonbast (Free Market)', url: 'https://bonbast.com/', selector: '#usd1', parser: (text) => parseInt(text.replace(/,/g, ''), 10) },
+            ],
+            'iranGold': [
+                { name: 'TGJU.org (18 Ayar)', url: 'https://www.tgju.org/profile/geram18', selector: 'span[data-col="info.last_trade.PDrCotVal"]', parser: (text) => parseInt(text.replace(/,/g, ''), 10) },
+                { name: 'Mesghal.com (18 Ayar)', url: 'https://www.mesghal.com/', selector: '#geram18_val', parser: (text) => parseInt(text.replace(/[^0-9]/g, ''), 10) }
+            ]
+        };
+        const CACHE_DURATION_MS = 10 * 60 * 1000; // 10 دقیقه برای اعتبار کش
+
+        // --- توابع ---
+
+        function updateStatus(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId); if (!element) return;
+            const maxLines = 7;
+            const colorClasses = { info: 'text-blue-600', success: 'text-green-600 font-semibold', error: 'text-red-600', attempt: 'text-gray-500', cache: 'text-purple-600' }; // Added cache color
+            const timestamp = new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit'});
+            const newMessage = `<p class="${colorClasses[type] || 'text-gray-700'}">[${timestamp}] ${message}</p>`; // Fallback color
+            element.innerHTML = newMessage + element.innerHTML;
+            const lines = element.getElementsByTagName('p');
+            while (lines.length > maxLines) { element.removeChild(lines[lines.length - 1]); }
+        }
+
+        function clearStatus(elementId) {
+            const element = document.getElementById(elementId); if (element) { element.innerHTML = ''; }
+        }
+
+        function handleManualInput(inputElement) {
+            inputElement.classList.remove('input-autofilled');
+        }
+
+        // ذخیره مقادیر ورودی در localStorage
+        function saveInputs() {
+            const ounce = document.getElementById('ouncePrice').value;
+            const dollar = document.getElementById('dollarPrice').value;
+            const iran = document.getElementById('iranGold').value;
+            localStorage.setItem('lastOuncePrice', ounce);
+            localStorage.setItem('lastDollarPrice', dollar);
+            localStorage.setItem('lastIranGold', iran);
+        }
+
+        // بارگیری مقادیر ورودی از localStorage در هنگام بارگیری صفحه
+        window.onload = function() {
+            const lastOunce = localStorage.getItem('lastOuncePrice');
+            const lastDollar = localStorage.getItem('lastDollarPrice');
+            const lastIran = localStorage.getItem('lastIranGold');
+            if (lastOunce) document.getElementById('ouncePrice').value = lastOunce;
+            if (lastDollar) document.getElementById('dollarPrice').value = lastDollar;
+            if (lastIran) document.getElementById('iranGold').value = lastIran;
+        };
+
+        async function fetchData(dataType, inputId, statusId) {
+            const sources = SOURCES[dataType];
+            const friendlyName = dataType === 'gold' ? 'انس' : dataType === 'dollar' ? 'دلار' : 'طلا';
+
+            if (!sources || sources.length === 0) {
+                updateStatus(statusId, `❌ منبعی برای ${friendlyName} تعریف نشده`, 'error'); return;
+            }
+
+            const buttonId = `Workspace${dataType.charAt(0).toUpperCase() + dataType.slice(1)}Button`; // исправление ID кнопки
+            const button = document.getElementById(buttonId);
+            const buttonText = button?.querySelector('.button-text');
+            const spinner = button?.querySelector('.spinner');
+            if (button) button.disabled = true;
+            if (buttonText) buttonText.classList.add('hidden');
+            if (spinner) spinner.classList.remove('hidden');
+
+            clearStatus(statusId);
+
+            // --- بررسی Cache ---
+            const cacheKey = `cache_${dataType}`;
+            try {
+                const cachedItem = localStorage.getItem(cacheKey);
+                if (cachedItem) {
+                    const parsedCache = JSON.parse(cachedItem);
+                    if (Date.now() - parsedCache.timestamp < CACHE_DURATION_MS) {
+                        const cachedValue = parsedCache.value;
+                        const inputElement = document.getElementById(inputId);
+                        const displayValue = dataType === 'gold' ? Number(cachedValue).toFixed(2) : Number(cachedValue).toFixed(0);
+                        inputElement.value = displayValue;
+                        inputElement.classList.add('input-autofilled');
+                        updateStatus(statusId, `✅ موفقیت از حافظه پنهان (مقدار: ${displayValue})`, 'cache');
+
+                        if (button) button.disabled = false;
+                        if (buttonText) buttonText.classList.remove('hidden');
+                        if (spinner) spinner.classList.add('hidden');
+                        return; // اتمام کار
+                    } else {
+                        localStorage.removeItem(cacheKey);
+                        updateStatus(statusId, `🗑️ حافظه پنهان منقضی شده بود.`, 'info');
+                    }
+                }
+            } catch(e) { console.error("Cache read error:", e); localStorage.removeItem(cacheKey); }
+            // --- پایان بررسی Cache ---
+
+            updateStatus(statusId, `⏳ شروع دریافت ${friendlyName} از شبکه...`, 'info');
+            let success = false;
+            let overallFailureMessage = `❌ دریافت ${friendlyName} از تمام منابع شبکه ناموفق بود.`;
+
+            for (const source of sources) {
+                updateStatus(statusId, `🔎 تلاش برای دریافت از: ${source.name}`, 'attempt');
+                let proxySuccess = false;
+                let lastErrorForSource = `خطای نامشخص در ${source.name}`;
+
+                for (let i = 0; i < CORS_PROXIES.length; i++) {
+                    const proxyUrl = CORS_PROXIES[currentProxyIndex];
+                    let fullUrl;
+                    const needsEncoding = ['allorigins.win', 'codetabs.com', 'amano.workers.dev'].some(url => proxyUrl.includes(url));
+                    fullUrl = needsEncoding ? `${proxyUrl}${encodeURIComponent(source.url)}` : `${proxyUrl}${source.url}`;
+
+                    try {
+                        const response = await fetch(fullUrl);
+                        if (!response.ok) throw new Error(`خطای شبکه ${response.status} از پروکسی ${currentProxyIndex + 1}`);
+                        let htmlContent;
+                        if (proxyUrl.includes('allorigins.win')) {
+                            const data = await response.json();
+                            if (!data.contents) throw new Error(`محتوای نامعتبر از allorigins`);
+                            htmlContent = data.contents;
+                        } else {
+                            htmlContent = await response.text();
+                        }
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(htmlContent, 'text/html');
+                        const priceElement = doc.querySelector(source.selector);
+                        if (!priceElement) throw new Error(`سلکتور (${source.selector}) یافت نشد`);
+                        const rawValue = priceElement.textContent.trim();
+                        if (!rawValue) throw new Error(`محتوای متنی خالی`);
+                        let parsedValue = source.parser(rawValue);
+                        if (isNaN(parsedValue) || parsedValue <= 0) throw new Error(`مقدار نامعتبر (${rawValue})`);
+                        if (dataType === 'dollar' || dataType === 'iranGold') {
+                            parsedValue /= 10;
+                        } // Toman
+                        const displayValue = dataType === 'gold' ? parsedValue.toFixed(2) : parsedValue.toFixed(0);
+                        const inputElement = document.getElementById(inputId);
+                        inputElement.value = displayValue;
+                        inputElement.classList.add('input-autofilled');
+
+                        // --- ذخیره در Cache ---
+                        try {
+                            localStorage.setItem(cacheKey, JSON.stringify({ value: parsedValue, timestamp: Date.now() }));
+                            updateStatus(statusId, `💾 در حافظه پنهان ذخیره شد.`, 'info');
+                        } catch (e) {
+                            console.error("Cache save error:", e);
+                            updateStatus(statusId, `⚠️ خطا در ذخیره کش`, 'error');
+                        }
+                        // --------------------
+
+                        success = true;
+                        proxySuccess = true;
+                        updateStatus(statusId, `✅ موفقیت از شبکه: ${source.name} (مقدار: ${displayValue})`, 'success');
+                        break; // خروج از حلقه پروکسی‌ها
+
+                    } catch (error) {
+                        lastErrorForSource = error.message || 'خطای ناشناخته';
+                        currentProxyIndex = (currentProxyIndex + 1) % CORS_PROXIES.length;
+                    }
+                } // پایان حلقه پروکسی‌ها
+
+                if (proxySuccess) {
+                    break; // خروج از حلقه منابع
+                } else {
+                    updateStatus(statusId, `❗️ دریافت از ${source.name} ناموفق (خطا: ${lastErrorForSource})`, 'error');
+                    currentProxyIndex = 0;
+                }
+            } // پایان حلقه منابع
+
+            if (!success) { updateStatus(statusId, overallFailureMessage, 'error'); }
+
+            // --- بازگرداندن دکمه به حالت عادی ---
+            if (button) button.disabled = false;
+            if (buttonText) buttonText.classList.remove('hidden');
+            if (spinner) spinner.classList.add('hidden');
+        }
+
+        function calculate() {
+            const inputs = validateInputs(); if (!inputs) { document.getElementById('results').innerHTML = ''; return; }
+            const { ounce, dollar, iran } = inputs;
+            const gram24PriceToman = (ounce / 31.1035) * dollar;
+            const calculatedGram18PriceToman = (gram24PriceToman * 0.75).toFixed(0);
+            const difference = iran - calculatedGram18PriceToman;
+            const percentage = calculatedGram18PriceToman > 0 ? ((difference / calculatedGram18PriceToman) * 100).toFixed(2) : 0;
+            showResult(calculatedGram18PriceToman, iran, percentage, ounce, dollar); // ارسال مقادیر ورودی
+        }
+        function getStatus(percentage) {
+            percentage = parseFloat(percentage);
+            if (percentage < -3) return ['فرصت عالی خرید 🚀', 'bg-green-100 text-green-800 border border-green-300'];
+            if (percentage < -1) return ['احتمالا فرصت خرید ✅', 'bg-green-100 text-green-800 border border-green-300'];
+            if (percentage <= 1) return ['محدوده معقول / تعادل ⚖️', 'bg-blue-100 text-blue-800 border border-blue-300'];
+            if (percentage <= 4) return ['کمی بالاتر از انتظار / احتیاط ⚠️', 'bg-yellow-100 text-yellow-800 border border-yellow-300'];
+            if (percentage <= 8) return ['احتمال وجود حباب / ریسک متوسط ❗️', 'bg-red-100 text-red-800 border border-red-300'];
+            return ['ریسک بالا / حباب قابل توجه ❌', 'bg-red-100 text-red-800 border border-red-300 font-bold'];
+        }
+        function showResult(calculatedPriceToman, actualPriceToman, percentage, ouncePrice, dollarPrice) {
+            const [statusText, statusClass] = getStatus(percentage);
+            const difference = actualPriceToman - calculatedPriceToman;
+            const differenceText = difference >= 0 ? `بالاتر (+${difference.toLocaleString('fa-IR')} تومان)` : `پایین‌تر (${difference.toLocaleString('fa-IR')} تومان)`;
+
+            const resultHTML = `
+                <div class="bg-white p-4 rounded-lg shadow-md">
+                    <h3 class="text-lg font-semibold mb-3 text-center text-gray-800">نتایج تحلیل قیمت طلا (تومان)</h3>
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div class="text-center border-l border-gray-200 pl-2">
+                            <p class="text-sm text-gray-500">قیمت محاسبه‌شده هر گرم ۱۸ عیار<br/>(بر اساس انس جهانی و دلار)</p>
+                            <p class="text-xl font-bold text-blue-600 mt-1">${Number(calculatedPriceToman).toLocaleString('fa-IR')} <span class="text-xs">تومان</span></p>
+                        </div>
+                        <div class="text-center border-r border-gray-200 pr-2">
+                            <p class="text-sm text-gray-500">قیمت هر گرم ۱۸ عیار<br/>(بازار ایران)</p>
+                            <p class="text-xl font-bold text-green-600 mt-1">${Number(actualPriceToman).toLocaleString('fa-IR')} <span class="text-xs">تومان</span></p>
+                        </div>
+                    </div>
+                    <div class="mb-2 text-center text-sm text-gray-600">
+                        بر اساس قیمت انس جهانی: ${parseFloat(ouncePrice).toLocaleString('en-US')} دلار و قیمت دلار: ${parseFloat(dollarPrice).toLocaleString('fa-IR')} تومان.
+                    </div>
+                    <div class="text-center mb-4 p-3 rounded-lg ${statusClass}">
+                        <p class="font-bold text-lg">${statusText}</p>
+                        <p class="text-sm mt-1">قیمت بازار ایران ${percentage}% (${differenceText}) نسبت به قیمت جهانی محاسبه شده است.</p>
+                    </div>
+                    <div class="mb-4">
+                        <canvas id="percentageChart" width="200" height="80"></canvas>
+                    </div>
+                    <div class="mt-3 text-xs text-gray-500 text-center">
+                        تحلیل در تاریخ ${new Date().toLocaleDateString('fa-IR', { timeZone: 'Asia/Tehran' })} ساعت ${new Date().toLocaleTimeString('fa-IR', { timeZone: 'Asia/Tehran' })} انجام شد.
+                    </div>
+                </div>`;
+            document.getElementById('results').innerHTML = resultHTML;
+
+            // رسم نمودار
+            const ctx = document.getElementById('percentageChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['درصد اختلاف'],
+                    datasets: [{
+                        label: 'درصد',
+                        data: [percentage],
+                        backgroundColor: percentage >= 0 ? 'rgba(255, 99, 132, 0.2)' : 'rgba(75, 192, 192, 0.2)',
+                        borderColor: percentage >= 0 ? 'rgba(255, 99, 132, 1)' : 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + context.parsed.toFixed(2) + '%';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        function validateInputs() {
+            const inputs = { ounce: document.getElementById('ouncePrice').value, dollar: document.getElementById('dollarPrice').value, iran: document.getElementById('iranGold').value };
+            const errors = [];
+            if (!inputs.ounce || isNaN(parseFloat(inputs.ounce)) || parseFloat(inputs.ounce) <= 0) errors.push("قیمت انس جهانی");
+            if (!inputs.dollar || isNaN(parseFloat(inputs.dollar)) || parseFloat(inputs.dollar) <= 0) errors.push("قیمت دلار (تومان)");
+            if (!inputs.iran || isNaN(parseFloat(inputs.iran)) || parseFloat(inputs.iran) <= 0) errors.push("قیمت طلای ایران (تومان)");
+            if (errors.length > 0) {
+                alert(`لطفاً مقادیر معتبر و مثبت برای موارد زیر وارد کنید:\n- ${errors.join('\n- ')}`);
+                return false;
+            }
+            return { ounce: parseFloat(inputs.ounce), dollar: parseFloat(inputs.dollar), iran: parseFloat(inputs.iran) };
+        }
+        function resetAll() {
+            const inputIds = ['ouncePrice', 'dollarPrice', 'iranGold'];
+            inputIds.forEach(id => {
+                const element = document.getElementById(id);
+                element.value = '';
+                element.classList.remove('input-autofilled');
+            });
+            document.getElementById('results').innerHTML = '';
+            clearStatus('goldStatus');
+            clearStatus('dollarStatus');
+            clearStatus('iranGoldStatus');
+            // Optionally clear cache on reset?
+            // localStorage.removeItem('cache_gold');
+            // localStorage.removeItem('cache_dollar');
+            // localStorage.removeItem('cache_iranGold');
+        }
+
+        // ذخیره مقادیر ورودی در localStorage
+        function saveInputs() {
+            const ounce = document.getElementById('ouncePrice').value;
+            const dollar = document.getElementById('dollarPrice').value;
+            const iran = document.getElementById('iranGold').value;
+            localStorage.setItem('lastOuncePrice', ounce);
+            localStorage.setItem('lastDollarPrice', dollar);
+            localStorage.setItem('lastIranGold', iran);
+        }
+
+        // بارگیری مقادیر ورودی از localStorage در هنگام بارگیری صفحه
+        window.onload = function() {
+            const lastOunce = localStorage.getItem('lastOuncePrice');
+            const lastDollar = localStorage.getItem('lastDollarPrice');
+            const lastIran = localStorage.getItem('lastIranGold');
+            if (lastOunce) document.getElementById('ouncePrice').value = lastOunce;
+            if (lastDollar) document.getElementById('dollarPrice').value = lastDollar;
+            if (lastIran) document.getElementById('iranGold').value = lastIran;
+        };
+
+        function shareResults() {
+            const calculatedPriceElement = document.querySelector('#results .text-blue-600');
+            const actualPriceElement = document.querySelector('#results .text-green-600');
+            const percentageDiffElement = document.querySelector('#results .rounded-lg p:last-child');
+            const differenceTextElement = document.querySelector('#results .rounded-lg p:last-child'); // از همین عنصر برای متن اختلاف هم استفاده می‌کنیم
+
+            if (!calculatedPriceElement || !actualPriceElement || !percentageDiffElement || !differenceTextElement) {
+                alert('ابتدا باید محاسبه انجام شود.');
+                return;
+            }
+
+            const calculatedPrice = calculatedPriceElement.textContent.trim().replace(' تومان', '').replace(/٬/g, '');
+            const actualPrice = actualPriceElement.textContent.trim().replace(' تومان', '').replace(/٬/g, '');
+            const percentageMatch = percentageDiffElement.textContent.trim().match(/(\d+\.?\d*)%/);
+            const percentage = percentageMatch ? parseFloat(percentageMatch[1]) : NaN; // تبدیل به عدد برای استفاده در getStatus
+            const differenceFullText = differenceTextElement.textContent.trim();
+            const differenceMatch = differenceFullText.match(/(\((.*?)\))/);
+            let differenceValue = 'نامشخص';
+            if (differenceMatch && differenceMatch[2]) {
+                const diffText = differenceMatch[2];
+                if (diffText.includes('+')) {
+                    differenceValue = diffText.split('+')[1].replace(' تومان', '').replace(/٬/g, '').trim();
+                } else if (diffText.includes('-')) {
+                    differenceValue = diffText.split('-')[1].replace(' تومان', '').replace(/٬/g, '').trim();
+                }
+            }
+
+            let statusText = '';
+            if (!isNaN(percentage)) {
+                if (percentage < -3) statusText = 'فرصت عالی خرید 🚀';
+                else if (percentage < -1) statusText = 'احتمالا فرصت خرید ✅';
+                else if (percentage <= 1) statusText = 'محدوده معقول / تعادل ⚖️';
+                else if (percentage <= 4) statusText = 'کمی بالاتر از انتظار / احتیاط ⚠️';
+                else if (percentage <= 8) statusText = 'احتمال وجود حباب / ریسک متوسط ❗️';
+                else statusText = 'ریسک بالا / حباب قابل توجه ❌';
+            } else {
+                statusText = 'وضعیت نامشخص';
+            }
+
+            const isHigher = parseFloat(actualPrice) > parseFloat(calculatedPrice);
+            const differenceToShow = differenceValue !== 'نامشخص' ? differenceValue : 'نامشخص';
+            const higherLowerText = isHigher && differenceToShow !== 'نامشخص' ? 'گران است' : (differenceToShow !== 'نامشخص' ? 'ارزان است' : 'نامشخص');
+
+            const shareText = `قیمت طلا 18 عیار بر اساس انس جهانی ${calculatedPrice.toLocaleString('fa-IR')} تومان می باشد. قیمت داخلی طلا در ایران ${actualPrice.toLocaleString('fa-IR')} تومان میباشد. در حال حاضر طلای داخلی ${differenceToShow} تومان از طلای جهانی ${higherLowerText} که این مقدار برابر است با ${isNaN(percentage) ? 'نامشخص' : percentage.toFixed(2)}% - وضعیت: ${statusText}`;
+
+            navigator.clipboard.writeText(shareText).then(() => {
+                alert('متن برای اشتراک‌گذاری در کلیپ‌بورد کپی شد!');
+            }).catch(err => {
+                console.error('خطا در کپی کردن متن: ', err);
+                alert('متاسفانه امکان کپی کردن متن وجود ندارد.');
+            });
+        }
+
+        // کد ثبت Service Worker حذف شد
+
+        // یک بهبود کوچک: نمایش تاریخ و ساعت تحلیل به وقت تهران
+        // (به تابع showResult اضافه شد: timeZone: 'Asia/Tehran')
+
+        // بهبود کوچک: پاک کردن نتایج قبلی هنگام محاسبه با ورودی نامعتبر
+        // (به ابتدای تابع calculate اضافه شد)
+
+    </script>
+</body>
+</html>
