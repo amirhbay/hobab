@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>حباب یاب هوشمند طلا - تومان (با Cache)</title>
-    <link rel="manifest" href="/manifest.json">
+    <link rel="manifest" href="/hobab/manifest.json">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -433,7 +433,7 @@
 
         if ('serviceWorker' in navigator) {
           window.addEventListener('load', function() {
-            navigator.serviceWorker.register('/service-worker.js')
+            navigator.serviceWorker.register('/hobab/service-worker.js')
               .then(function(registration) {
                 console.log('Service Worker registered with scope:', registration.scope);
               })
