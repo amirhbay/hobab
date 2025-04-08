@@ -1,11 +1,11 @@
 const CACHE_NAME = 'gold-bubble-v1';
 const urlsToCache = [
   '/',
-  '/index.html', // مطمئن شوید که نام فایل HTML شما همین است
+  '/hobab/index.html', // مطمئن شوید که نام فایل HTML شما همین است
   // '/css/style.css', // اگر فایل CSS جداگانه دارید، مسیر آن را اینجا اضافه کنید
   // '/js/app.js',   // اگر فایل JS جداگانه دارید، مسیر آن را اینجا اضافه کنید
-  '/icons/icon-192x192.png',
-  '/icons/icon-512x512.png'
+  '/hobab/icons/icon-192x192.png',
+  '/hobab/icons/icon-512x512.png'
 ];
 
 self.addEventListener('install', function(event) {
