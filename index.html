@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ماشین حساب هوشمند طلا - تومان (با Cache)</title>
+    <title>حباب یاب هوشمند طلا - تومان (با Cache)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -40,7 +40,7 @@
     <div class="max-w-2xl mx-auto">
         <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4">
             <strong>توجه:</strong>
-            <p class="mb-0">این ابزار فقط در جهت روشنگری است و جنبه‌ی آموزشی دارد و اصلا پیشنهاد خرید یا نگهداری نیست. فقط وسیله ‌ایست  تا با در نظر گرفتن اخبار دلار و طلا و ... تصمیم بهتری بگیرید.</p>
+            <p class="mb-0">این ابزار فقط در جهت روشنگری است و جنبه‌ی آموزشی دارد و اصلا پیشنهاد خرید یا نگهداری نیست. فقط وسیله‌ای هست تا با در نظر گرفتن اخبار دلار و طلا و ... تصمیم بهتری بگیرید.</p>
         </div>
 
         <div class="bg-white p-4 rounded-lg shadow-md mb-4">
@@ -90,8 +90,7 @@
             <button onclick="resetAll()" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg">بازنشانی فرم</button>
         </div>
         <div id="results" class="space-y-4"></div>
-      
-    </div>
+        </div>
 
     <script>
         // --- تنظیمات ---
@@ -215,6 +214,8 @@
                 let lastErrorForSource = `خطای نامشخص در ${source.name}`;
 
                 for (let i = 0; i < CORS_PROXIES.length; i++) {
+                    // افزودن یک تاخیر کوتاه قبل از تلاش برای پروکسی بعدی
+                    await new Promise(resolve => setTimeout(resolve, 500)); // 500 میلی ثانیه تاخیر
                     const proxyUrl = CORS_PROXIES[currentProxyIndex];
                     let fullUrl;
                     const needsEncoding = ['allorigins.win', 'codetabs.com', 'amano.workers.dev'].some(url => proxyUrl.includes(url));
@@ -299,8 +300,7 @@
             if (percentage < -1) return ['احتمالا فرصت خرید ✅', 'bg-green-100 text-green-800 border border-green-300'];
             if (percentage <= 1) return ['محدوده معقول / تعادل ⚖️', 'bg-blue-100 text-blue-800 border border-blue-300'];
             if (percentage <= 4) return ['کمی بالاتر از انتظار / احتیاط ⚠️', 'bg-yellow-100 text-yellow-800 border border-yellow-300'];
-            if (percentage <= 8) return ['احتمال وجود حباب / ریسک متوسط ❗️', 'bg-red-100 text-red-800 border border-red-300'];
-            return ['ریسک بالا / حباب قابل توجه ❌', 'bg-red-100 text-red-800 border border-red-300 font-bold'];
+            if (percentage <= 8) return ['احتمال وجود حباب / ریسک متوسط ❗️', 'bg-red-100 text-red-800 border border-red-300 font-bold'];
         }
         function showResult(calculatedPriceToman, actualPriceToman, percentage, ouncePrice, dollarPrice) {
             const [statusText, statusClass] = getStatus(percentage);
@@ -426,58 +426,7 @@
             if (lastIran) document.getElementById('iranGold').value = lastIran;
         };
 
-        function shareResults() {
-            const calculatedPriceElement = document.querySelector('#results .text-blue-600');
-            const actualPriceElement = document.querySelector('#results .text-green-600');
-            const percentageDiffElement = document.querySelector('#results .rounded-lg p:last-child');
-            const differenceTextElement = document.querySelector('#results .rounded-lg p:last-child'); // از همین عنصر برای متن اختلاف هم استفاده می‌کنیم
-
-            if (!calculatedPriceElement || !actualPriceElement || !percentageDiffElement || !differenceTextElement) {
-                alert('ابتدا باید محاسبه انجام شود.');
-                return;
-            }
-
-            const calculatedPrice = calculatedPriceElement.textContent.trim().replace(' تومان', '').replace(/٬/g, '');
-            const actualPrice = actualPriceElement.textContent.trim().replace(' تومان', '').replace(/٬/g, '');
-            const percentageMatch = percentageDiffElement.textContent.trim().match(/(\d+\.?\d*)%/);
-            const percentage = percentageMatch ? parseFloat(percentageMatch[1]) : NaN; // تبدیل به عدد برای استفاده در getStatus
-            const differenceFullText = differenceTextElement.textContent.trim();
-            const differenceMatch = differenceFullText.match(/(\((.*?)\))/);
-            let differenceValue = 'نامشخص';
-            if (differenceMatch && differenceMatch[2]) {
-                const diffText = differenceMatch[2];
-                if (diffText.includes('+')) {
-                    differenceValue = diffText.split('+')[1].replace(' تومان', '').replace(/٬/g, '').trim();
-                } else if (diffText.includes('-')) {
-                    differenceValue = diffText.split('-')[1].replace(' تومان', '').replace(/٬/g, '').trim();
-                }
-            }
-
-            let statusText = '';
-            if (!isNaN(percentage)) {
-                if (percentage < -3) statusText = 'فرصت عالی خرید 🚀';
-                else if (percentage < -1) statusText = 'احتمالا فرصت خرید ✅';
-                else if (percentage <= 1) statusText = 'محدوده معقول / تعادل ⚖️';
-                else if (percentage <= 4) statusText = 'کمی بالاتر از انتظار / احتیاط ⚠️';
-                else if (percentage <= 8) statusText = 'احتمال وجود حباب / ریسک متوسط ❗️';
-                else statusText = 'ریسک بالا / حباب قابل توجه ❌';
-            } else {
-                statusText = 'وضعیت نامشخص';
-            }
-
-            const isHigher = parseFloat(actualPrice) > parseFloat(calculatedPrice);
-            const differenceToShow = differenceValue !== 'نامشخص' ? differenceValue : 'نامشخص';
-            const higherLowerText = isHigher && differenceToShow !== 'نامشخص' ? 'گران است' : (differenceToShow !== 'نامشخص' ? 'ارزان است' : 'نامشخص');
-
-            const shareText = `قیمت طلا 18 عیار بر اساس انس جهانی ${calculatedPrice.toLocaleString('fa-IR')} تومان می باشد. قیمت داخلی طلا در ایران ${actualPrice.toLocaleString('fa-IR')} تومان میباشد. در حال حاضر طلای داخلی ${differenceToShow} تومان از طلای جهانی ${higherLowerText} که این مقدار برابر است با ${isNaN(percentage) ? 'نامشخص' : percentage.toFixed(2)}% - وضعیت: ${statusText}`;
-
-            navigator.clipboard.writeText(shareText).then(() => {
-                alert('متن برای اشتراک‌گذاری در کلیپ‌بورد کپی شد!');
-            }).catch(err => {
-                console.error('خطا در کپی کردن متن: ', err);
-                alert('متاسفانه امکان کپی کردن متن وجود ندارد.');
-            });
-        }
+        // تابع shareResults حذف شد
 
         // کد ثبت Service Worker حذف شد
 
