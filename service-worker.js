@@ -1,6 +1,6 @@
 const CACHE_NAME = 'gold-bubble-v1';
 const urlsToCache = [
-  '/',
+  '/hobab/',
   '/hobab/index.html', // مطمئن شوید که نام فایل HTML شما همین است
   // '/css/style.css', // اگر فایل CSS جداگانه دارید، مسیر آن را اینجا اضافه کنید
   // '/js/app.js',   // اگر فایل JS جداگانه دارید، مسیر آن را اینجا اضافه کنید
