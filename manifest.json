@@ -2,7 +2,7 @@
   "name": "حباب یاب هوشمند طلا",
   "short_name": "حباب یاب طلا",
   "description": "ابزاری هوشمند برای تحلیل حباب قیمت طلای 18 عیار ایران بر اساس قیمت جهانی و دلار.",
-  "start_url": "/",
+  "start_url": "/hobab/",
   "display": "standalone",
   "background_color": "#f9fafb",
   "theme_color": "#6b7280",
