@@ -206,35 +206,72 @@
             // --- پایان بررسی Cache ---
 
             updateStatus(statusId, `⏳ شروع دریافت ${friendlyName} از شبکه...`, 'info');
-            const fetchPromises = sources.map(source => fetchWithProxy(source, statusId, dataType, inputId));
-            const results = await Promise.allSettled(fetchPromises);
 
-            let success = false;
-            for (const result of results) {
-                if (result.status === 'fulfilled' && result.value) {
-                    const { displayValue, parsedValue } = result.value;
+            let fetchedValue = null;
+            for (const source of sources) {
+                updateStatus(statusId, `🔎 تلاش برای دریافت از: ${source.name}`, 'attempt');
+                let lastErrorForSource = `خطای نامشخص در ${source.name}`;
+
+                for (let i = 0; i < CORS_PROXIES.length; i++) {
+                    await new Promise(resolve => setTimeout(resolve, 500)); // Keep the delay for proxy attempts
+                    const proxyUrl = CORS_PROXIES[currentProxyIndex];
+                    let fullUrl;
+                    const needsEncoding = ['allorigins.win', 'codetabs.com', 'amano.workers.dev'].some(url => proxyUrl.includes(url));
+                    fullUrl = needsEncoding ? `${proxyUrl}${encodeURIComponent(source.url)}` : `${proxyUrl}${source.url}`;
+
+                    try {
+                        const response = await fetch(fullUrl);
+                        if (!response.ok) throw new Error(`خطای شبکه ${response.status} از پروکسی ${currentProxyIndex + 1}`);
+                        let htmlContent;
+                        if (proxyUrl.includes('allorigins.win')) {
+                            const data = await response.json();
+                            if (!data.contents) throw new Error(`محتوای نامعتبر از allorigins`);
+                            htmlContent = data.contents;
+                        } else {
+                            htmlContent = await response.text();
+                        }
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(htmlContent, 'text/html');
+                        const priceElement = doc.querySelector(source.selector);
+                        if (!priceElement) throw new Error(`سلکتور (${source.selector}) یافت نشد`);
+                        const rawValue = priceElement.textContent.trim();
+                        if (!rawValue) throw new Error(`محتوای متنی خالی`);
+                        let parsedValue = source.parser(rawValue);
+                        if (isNaN(parsedValue) || parsedValue <= 0) throw new Error(`مقدار نامعتبر (${rawValue})`);
+                        if (dataType === 'dollar' || dataType === 'iranGold') {
+                            parsedValue /= 10;
+                        } // Toman
+                        const displayValue = dataType === 'gold' ? parsedValue.toFixed(2) : parsedValue.toFixed(0);
+                        updateStatus(statusId, `✅ موفقیت از شبکه: ${source.name} (مقدار: ${displayValue})`, 'success');
+                        fetchedValue = { displayValue, parsedValue };
+                        break; // Exit proxy loop on success
+                    } catch (error) {
+                        lastErrorForSource = error.message || 'خطای ناشناخته';
+                        currentProxyIndex = (currentProxyIndex + 1) % CORS_PROXIES.length;
+                    }
+                }
+                if (fetchedValue) {
                     const inputElement = document.getElementById(inputId);
-                    inputElement.value = displayValue;
+                    inputElement.value = fetchedValue.displayValue;
                     inputElement.classList.add('input-autofilled');
-                    success = true;
 
                     // --- ذخیره در Cache ---
                     const cacheKey = `cache_${dataType}`;
                     try {
-                        localStorage.setItem(cacheKey, JSON.stringify({ value: parsedValue, timestamp: Date.now() }));
+                        localStorage.setItem(cacheKey, JSON.stringify({ value: fetchedValue.parsedValue, timestamp: Date.now() }));
                         updateStatus(statusId, `💾 در حافظه پنهان ذخیره شد.`, 'info');
                     } catch (e) {
                         console.error("Cache save error:", e);
                         updateStatus(statusId, `⚠️ خطا در ذخیره کش`, 'error');
                     }
                     // --------------------
-                    break; // Stop after the first successful fetch
-                } else if (result.status === 'rejected') {
-                    updateStatus(statusId, `❗️ تلاش ناموفق: ${result.reason}`, 'error');
+                    break; // Exit source loop on success
+                } else {
+                    updateStatus(statusId, `❗️ دریافت از ${source.name} ناموفق (خطا: ${lastErrorForSource})`, 'error');
                 }
             }
 
-            if (!success) {
+            if (!fetchedValue) {
                 updateStatus(statusId, `❌ دریافت ${friendlyName} از تمام منابع شبکه ناموفق بود.`, 'error');
             }
 
@@ -242,52 +279,6 @@
             if (button) button.disabled = false;
             if (buttonText) buttonText.classList.remove('hidden');
             if (spinner) spinner.classList.add('hidden');
-        }
-
-        async function fetchWithProxy(source, statusId, dataType, inputId) {
-            updateStatus(statusId, `🔎 تلاش برای دریافت از: ${source.name}`, 'attempt');
-            let lastErrorForSource = `خطای نامشخص در ${source.name}`;
-
-            for (let i = 0; i < CORS_PROXIES.length; i++) {
-                await new Promise(resolve => setTimeout(resolve, 500)); // Keep the delay for proxy attempts
-                const proxyUrl = CORS_PROXIES[currentProxyIndex];
-                let fullUrl;
-                const needsEncoding = ['allorigins.win', 'codetabs.com', 'amano.workers.dev'].some(url => proxyUrl.includes(url));
-                fullUrl = needsEncoding ? `${proxyUrl}${encodeURIComponent(source.url)}` : `${proxyUrl}${source.url}`;
-
-                try {
-                    const response = await fetch(fullUrl);
-                    if (!response.ok) throw new Error(`خطای شبکه ${response.status} از پروکسی ${currentProxyIndex + 1}`);
-                    let htmlContent;
-                    if (proxyUrl.includes('allorigins.win')) {
-                        const data = await response.json();
-                        if (!data.contents) throw new Error(`محتوای نامعتبر از allorigins`);
-                        htmlContent = data.contents;
-                    } else {
-                        htmlContent = await response.text();
-                    }
-                    const parser = new DOMParser();
-                    const doc = parser.parseFromString(htmlContent, 'text/html');
-                    const priceElement = doc.querySelector(source.selector);
-                    if (!priceElement) throw new Error(`سلکتور (${source.selector}) یافت نشد`);
-                    const rawValue = priceElement.textContent.trim();
-                    if (!rawValue) throw new Error(`محتوای متنی خالی`);
-                    let parsedValue = source.parser(rawValue);
-                    if (isNaN(parsedValue) || parsedValue <= 0) throw new Error(`مقدار نامعتبر (${rawValue})`);
-                    if (dataType === 'dollar' || dataType === 'iranGold') {
-                        parsedValue /= 10;
-                    } // Toman
-                    const displayValue = dataType === 'gold' ? parsedValue.toFixed(2) : parsedValue.toFixed(0);
-                    updateStatus(statusId, `✅ موفقیت از شبکه: ${source.name} (مقدار: ${displayValue})`, 'success');
-                    return { displayValue, parsedValue };
-
-                } catch (error) {
-                    lastErrorForSource = error.message || 'خطای ناشناخته';
-                    currentProxyIndex = (currentProxyIndex + 1) % CORS_PROXIES.length;
-                }
-            }
-            updateStatus(statusId, `❗️ دریافت از ${source.name} ناموفق (خطا: ${lastErrorForSource})`, 'error');
-            throw new Error(`Failed to fetch from ${source.name}`);
         }
 
         function calculate() {
