@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>حباب یاب هوشمند طلا - تومان (با Cache)</title>
-    <link rel="manifest" href="/hobab/manifest.json">
+    <link rel="manifest" href="/manifest.json">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -53,7 +53,7 @@
                             <input type="number" id="ouncePrice" oninput="handleManualInput(this); saveInputs();" class="block w-full rounded-md border-gray-300 shadow-sm" placeholder="مثال: 2350.50">
                             <div id="goldStatus" class="mt-1 status-box"></div>
                         </div>
-                        <button id="fetchGoldButton" onclick="fetchData('gold', 'ouncePrice', 'goldStatus')" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg h-fit whitespace-nowrap flex items-center justify-center min-w-[120px]">
+                        <button id="WorkspaceGoldButton" onclick="fetchData('gold', 'ouncePrice', 'goldStatus')" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg h-fit whitespace-nowrap flex items-center justify-center min-w-[120px]">
                             <span class="button-text">دریافت خودکار</span><span class="spinner hidden"></span>
                         </button>
                     </div>
@@ -65,7 +65,7 @@
                             <input type="number" id="dollarPrice" oninput="handleManualInput(this); saveInputs();" class="block w-full rounded-md border-gray-300 shadow-sm" placeholder="مثال: 58500">
                             <div id="dollarStatus" class="mt-1 status-box"></div>
                         </div>
-                        <button id="fetchDollarButton" onclick="fetchData('dollar', 'dollarPrice', 'dollarStatus')" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg h-fit whitespace-nowrap flex items-center justify-center min-w-[120px]">
+                        <button id="WorkspaceDollarButton" onclick="fetchData('dollar', 'dollarPrice', 'dollarStatus')" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg h-fit whitespace-nowrap flex items-center justify-center min-w-[120px]">
                             <span class="button-text">دریافت خودکار</span><span class="spinner hidden"></span>
                         </button>
                     </div>
@@ -77,7 +77,7 @@
                             <input type="number" id="iranGold" oninput="handleManualInput(this); saveInputs();" class="block w-full rounded-md border-gray-300 shadow-sm" placeholder="مثال: 3450000">
                             <div id="iranGoldStatus" class="mt-1 status-box"></div>
                         </div>
-                        <button id="fetchIranGoldButton" onclick="fetchData('iranGold', 'iranGold', 'iranGoldStatus')" class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg h-fit whitespace-nowrap flex items-center justify-center min-w-[120px]">
+                        <button id="WorkspaceIranGoldButton" onclick="fetchData('iranGold', 'iranGold', 'iranGoldStatus')" class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg h-fit whitespace-nowrap flex items-center justify-center min-w-[120px]">
                             <span class="button-text">دریافت خودکار</span><span class="spinner hidden"></span>
                         </button>
                     </div>
@@ -91,7 +91,8 @@
             <button onclick="resetAll()" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg">بازنشانی فرم</button>
         </div>
         <div id="results" class="space-y-4"></div>
-        </div>
+        <button onclick="shareResults()" class="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg mt-4">اشتراک‌گذاری نتایج</button>
+    </div>
 
     <script>
         // --- تنظیمات ---
@@ -169,7 +170,7 @@
                 updateStatus(statusId, `❌ منبعی برای ${friendlyName} تعریف نشده`, 'error'); return;
             }
 
-            const buttonId = `Workspace${dataType.charAt(0).toUpperCase() + dataType.slice(1)}Button`;
+            const buttonId = `Workspace${dataType.charAt(0).toUpperCase() + dataType.slice(1)}Button`; // исправление ID кнопки
             const button = document.getElementById(buttonId);
             const buttonText = button?.querySelector('.button-text');
             const spinner = button?.querySelector('.spinner');
@@ -206,14 +207,15 @@
             // --- پایان بررسی Cache ---
 
             updateStatus(statusId, `⏳ شروع دریافت ${friendlyName} از شبکه...`, 'info');
+            let success = false;
+            let overallFailureMessage = `❌ دریافت ${friendlyName} از تمام منابع شبکه ناموفق بود.`;
 
-            let fetchedValue = null;
             for (const source of sources) {
                 updateStatus(statusId, `🔎 تلاش برای دریافت از: ${source.name}`, 'attempt');
+                let proxySuccess = false;
                 let lastErrorForSource = `خطای نامشخص در ${source.name}`;
 
                 for (let i = 0; i < CORS_PROXIES.length; i++) {
-                    await new Promise(resolve => setTimeout(resolve, 500)); // Keep the delay for proxy attempts
                     const proxyUrl = CORS_PROXIES[currentProxyIndex];
                     let fullUrl;
                     const needsEncoding = ['allorigins.win', 'codetabs.com', 'amano.workers.dev'].some(url => proxyUrl.includes(url));
@@ -242,38 +244,40 @@
                             parsedValue /= 10;
                         } // Toman
                         const displayValue = dataType === 'gold' ? parsedValue.toFixed(2) : parsedValue.toFixed(0);
+                        const inputElement = document.getElementById(inputId);
+                        inputElement.value = displayValue;
+                        inputElement.classList.add('input-autofilled');
+
+                        // --- ذخیره در Cache ---
+                        try {
+                            localStorage.setItem(cacheKey, JSON.stringify({ value: parsedValue, timestamp: Date.now() }));
+                            updateStatus(statusId, `💾 در حافظه پنهان ذخیره شد.`, 'info');
+                        } catch (e) {
+                            console.error("Cache save error:", e);
+                            updateStatus(statusId, `⚠️ خطا در ذخیره کش`, 'error');
+                        }
+                        // --------------------
+
+                        success = true;
+                        proxySuccess = true;
                         updateStatus(statusId, `✅ موفقیت از شبکه: ${source.name} (مقدار: ${displayValue})`, 'success');
-                        fetchedValue = { displayValue, parsedValue };
-                        break; // Exit proxy loop on success
+                        break; // خروج از حلقه پروکسی‌ها
+
                     } catch (error) {
                         lastErrorForSource = error.message || 'خطای ناشناخته';
                         currentProxyIndex = (currentProxyIndex + 1) % CORS_PROXIES.length;
                     }
-                }
-                if (fetchedValue) {
-                    const inputElement = document.getElementById(inputId);
-                    inputElement.value = fetchedValue.displayValue;
-                    inputElement.classList.add('input-autofilled');
+                } // پایان حلقه پروکسی‌ها
 
-                    // --- ذخیره در Cache ---
-                    const cacheKey = `cache_${dataType}`;
-                    try {
-                        localStorage.setItem(cacheKey, JSON.stringify({ value: fetchedValue.parsedValue, timestamp: Date.now() }));
-                        updateStatus(statusId, `💾 در حافظه پنهان ذخیره شد.`, 'info');
-                    } catch (e) {
-                        console.error("Cache save error:", e);
-                        updateStatus(statusId, `⚠️ خطا در ذخیره کش`, 'error');
-                    }
-                    // --------------------
-                    break; // Exit source loop on success
+                if (proxySuccess) {
+                    break; // خروج از حلقه منابع
                 } else {
                     updateStatus(statusId, `❗️ دریافت از ${source.name} ناموفق (خطا: ${lastErrorForSource})`, 'error');
+                    currentProxyIndex = 0;
                 }
-            }
+            } // پایان حلقه منابع
 
-            if (!fetchedValue) {
-                updateStatus(statusId, `❌ دریافت ${friendlyName} از تمام منابع شبکه ناموفق بود.`, 'error');
-            }
+            if (!success) { updateStatus(statusId, overallFailureMessage, 'error'); }
 
             // --- بازگرداندن دکمه به حالت عادی ---
             if (button) button.disabled = false;
@@ -296,7 +300,8 @@
             if (percentage < -1) return ['احتمالا فرصت خرید ✅', 'bg-green-100 text-green-800 border border-green-300'];
             if (percentage <= 1) return ['محدوده معقول / تعادل ⚖️', 'bg-blue-100 text-blue-800 border border-blue-300'];
             if (percentage <= 4) return ['کمی بالاتر از انتظار / احتیاط ⚠️', 'bg-yellow-100 text-yellow-800 border border-yellow-300'];
-            if (percentage <= 8) return ['احتمال وجود حباب / ریسک متوسط ❗️', 'bg-red-100 text-red-800 border border-red-300 font-bold'];
+            if (percentage <= 8) return ['احتمال وجود حباب / ریسک متوسط ❗️', 'bg-red-100 text-red-800 border border-red-300'];
+            return ['ریسک بالا / حباب قابل توجه ❌', 'bg-red-100 text-red-800 border border-red-300 font-bold'];
         }
         function showResult(calculatedPriceToman, actualPriceToman, percentage, ouncePrice, dollarPrice) {
             const [statusText, statusClass] = getStatus(percentage);
@@ -422,17 +427,77 @@
             if (lastIran) document.getElementById('iranGold').value = lastIran;
         };
 
-        if ('serviceWorker' in navigator) {
-          window.addEventListener('load', function() {
-            navigator.serviceWorker.register('/hobab/service-worker.js')
-              .then(function(registration) {
-                console.log('Service Worker registered with scope:', registration.scope);
-              })
-              .catch(function(error) {
-                console.error('Service Worker registration failed:', error);
-              });
-          });
+        function shareResults() {
+            const calculatedPriceElement = document.querySelector('#results .text-blue-600');
+            const actualPriceElement = document.querySelector('#results .text-green-600');
+            const percentageDiffElement = document.querySelector('#results .rounded-lg p:last-child');
+            const differenceTextElement = document.querySelector('#results .rounded-lg p:last-child'); // از همین عنصر برای متن اختلاف هم استفاده می‌کنیم
+
+            if (!calculatedPriceElement || !actualPriceElement || !percentageDiffElement || !differenceTextElement) {
+                alert('ابتدا باید محاسبه انجام شود.');
+                return;
+            }
+
+            const calculatedPrice = calculatedPriceElement.textContent.trim().replace(' تومان', '').replace(/٬/g, '');
+            const actualPrice = actualPriceElement.textContent.trim().replace(' تومان', '').replace(/٬/g, '');
+            const percentageMatch = percentageDiffElement.textContent.trim().match(/(\d+\.?\d*)%/);
+            const percentage = percentageMatch ? parseFloat(percentageMatch[1]) : NaN; // تبدیل به عدد برای استفاده در getStatus
+            const differenceFullText = differenceTextElement.textContent.trim();
+            const differenceMatch = differenceFullText.match(/(\((.*?)\))/);
+            let differenceValue = 'نامشخص';
+            if (differenceMatch && differenceMatch[2]) {
+                const diffText = differenceMatch[2];
+                if (diffText.includes('+')) {
+                    differenceValue = diffText.split('+')[1].replace(' تومان', '').replace(/٬/g, '').trim();
+                } else if (diffText.includes('-')) {
+                    differenceValue = diffText.split('-')[1].replace(' تومان', '').replace(/٬/g, '').trim();
+                }
+            }
+
+            let statusText = '';
+            if (!isNaN(percentage)) {
+                if (percentage < -3) statusText = 'فرصت عالی خرید 🚀';
+                else if (percentage < -1) statusText = 'احتمالا فرصت خرید ✅';
+                else if (percentage <= 1) statusText = 'محدوده معقول / تعادل ⚖️';
+                else if (percentage <= 4) statusText = 'کمی بالاتر از انتظار / احتیاط ⚠️';
+                else if (percentage <= 8) statusText = 'احتمال وجود حباب / ریسک متوسط ❗️';
+                else statusText = 'ریسک بالا / حباب قابل توجه ❌';
+            } else {
+                statusText = 'وضعیت نامشخص';
+            }
+
+            const isHigher = parseFloat(actualPrice) > parseFloat(calculatedPrice);
+            const differenceToShow = differenceValue !== 'نامشخص' ? differenceValue : 'نامشخص';
+            const higherLowerText = isHigher && differenceToShow !== 'نامشخص' ? 'گران است' : (differenceToShow !== 'نامشخص' ? 'ارزان است' : 'نامشخص');
+
+            const shareText = `قیمت طلا 18 عیار بر اساس انس جهانی ${calculatedPrice.toLocaleString('fa-IR')} تومان می باشد. قیمت داخلی طلا در ایران ${actualPrice.toLocaleString('fa-IR')} تومان میباشد. در حال حاضر طلای داخلی ${differenceToShow} تومان از طلای جهانی ${higherLowerText} که این مقدار برابر است با ${isNaN(percentage) ? 'نامشخص' : percentage.toFixed(2)}% - وضعیت: ${statusText}`;
+
+            navigator.clipboard.writeText(shareText).then(() => {
+                alert('متن برای اشتراک‌گذاری در کلیپ‌بورد کپی شد!');
+            }).catch(err => {
+                console.error('خطا در کپی کردن متن: ', err);
+                alert('متاسفانه امکان کپی کردن متن وجود ندارد.');
+            });
         }
+
+        // کد ثبت Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then(function(registration) {
+                        console.log('Service Worker registered with scope:', registration.scope);
+                    })
+                    .catch(function(error) {
+                        console.log('Service Worker registration failed:', error);
+                    });
+            });
+        }
+
+        // یک بهبود کوچک: نمایش تاریخ و ساعت تحلیل به وقت تهران
+        // (به تابع showResult اضافه شد: timeZone: 'Asia/Tehran')
+
+        // بهبود کوچک: پاک کردن نتایج قبلی هنگام محاسبه با ورودی نامعتبر
+        // (به ابتدای تابع calculate اضافه شد)
 
     </script>
 </body>
